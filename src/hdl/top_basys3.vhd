@@ -11,7 +11,7 @@
 --| ---------------------------------------------------------------------------
 --|
 --| FILENAME      : top_basys3.vhd
---| AUTHOR(S)     : Capt Phillip Warner
+--| AUTHOR(S)     : Capt Phillip Warner, Raine Komata
 --| CREATED       : 3/9/2018  MOdified by Capt Dan Johnson (3/30/2020)
 --| DESCRIPTION   : This file implements the top level module for a BASYS 3 to 
 --|					drive the Lab 4 Design Project (Advanced Elevator Controller).
@@ -32,7 +32,7 @@
 --|							 an(3:0)    --> seven-segment display anode active-low enable (AN3 ... AN0)
 --|							 seg(6:0)	--> seven-segment display cathodes (CG ... CA.  DP unused)
 --|
---| DOCUMENTATION : None
+--| DOCUMENTATION : Collaborated with my lab partner C3C Chapman.
 --|
 --+----------------------------------------------------------------------------
 --|
@@ -92,17 +92,126 @@ end top_basys3;
 architecture top_basys3_arch of top_basys3 is 
   
 	-- declare components and signals
-
-  
+    component TDM4 is
+        generic ( constant k_WIDTH : natural  := 4); -- bits in input and output
+        port ( i_clk        : in  STD_LOGIC;
+               i_reset      : in  STD_LOGIC; -- asynchronous
+               i_D3         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D2         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D1         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D0         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               o_data       : out STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               o_sel        : out STD_LOGIC_VECTOR (3 downto 0)    -- selected data line (one-cold)
+        );
+    end component TDM4;
+    
+    component elevator_controller_fsm is
+            port ( i_clk     : in  STD_LOGIC;
+                   i_reset   : in  STD_LOGIC;
+                   i_stop    : in  STD_LOGIC;
+                   i_up_down : in  STD_LOGIC;
+                   o_floor   : out STD_LOGIC_VECTOR (3 downto 0)           
+            );
+    end component elevator_controller_fsm;
+    
+    component sevenSegDecoder is
+            port ( i_D : in STD_LOGIC_VECTOR (3 downto 0);
+                   o_S : out STD_LOGIC_VECTOR (6 downto 0));
+    end component sevenSegDecoder;
+    
+    component clock_divider is
+            generic ( constant k_DIV : natural := 2 );
+            port (
+                i_clk   : in std_logic;
+                i_reset : in std_logic;
+                o_clk   : out std_logic 
+                );
+    end component clock_divider; 
+    
+    component numberGizmo is
+           port ( i_floor : in STD_LOGIC_VECTOR (3 downto 0);
+                  o_tens : out STD_LOGIC_VECTOR (3 downto 0);
+                  o_ones : out STD_LOGIC_VECTOR (3 downto 0)
+           );
+    end component numberGizmo;
+        
+    signal w_clk: std_logic;
+    signal w_clk_mux: std_logic;
+    signal w_floor: std_logic_vector(3 downto 0);
+    signal w_tens: std_logic_vector(3 downto 0);
+    signal w_ones: std_logic_vector(3 downto 0);
+    signal w_tens_disp: std_logic_vector(6 downto 0);
+    signal w_ones_disp: std_logic_vector(6 downto 0);
+    
 begin
 	-- PORT MAPS ----------------------------------------
-
+    elevator_controller_fsm_inst : elevator_controller_fsm 
+    port map (
+	   i_clk      => w_clk,
+       i_reset    => btnR or btnU,
+       i_stop     => sw(0),
+       i_up_down  => sw(1),
+       o_floor    => w_floor
+     );
+     
+     sevenSegDecoder1_inst : sevenSegDecoder
+     port map (
+        i_D => w_tens,
+        o_S => w_tens_disp
+     );
+     
+     sevenSegDecoder2_inst : sevenSegDecoder
+      port map (
+         i_D => w_ones,
+         o_S => w_ones_disp
+      );
+     
+     numberGizmo_inst: numberGizmo
+     port map (
+        i_floor => w_floor,
+        o_tens => w_tens,
+        o_ones => w_ones
+     );
 	
-	
+	 clock_divider1_inst: clock_divider
+    generic map ( k_DIV => 50000000 )
+    port map(
+        i_reset => btnL or btnU,
+        i_clk => clk,
+        o_clk => w_clk
+    );
+                
+    clock_divider2_inst: clock_divider
+    generic map ( k_DIV => 50000000 / 600 )
+    port map(
+        i_reset => '0',
+        i_clk => clk,
+        o_clk => w_clk_mux
+    );
+    
+    TDM4_inst: TDM4
+    generic map ( k_WIDTH => 7 )
+    port map(
+        i_clk => w_clk_mux,
+        i_reset => '0',
+        i_D0 => "1111111",
+        i_D1 => "1111111",
+        i_D2 => w_ones_disp,
+        i_D3 => w_tens_disp,
+        o_data => seg,
+        o_sel => an
+    );
 	-- CONCURRENT STATEMENTS ----------------------------
 	
 	-- LED 15 gets the FSM slow clock signal. The rest are grounded.
-	
+	led <= (
+           0 => w_clk,
+           12 => w_floor(0),
+           13 => w_floor(1),
+           14 => w_floor(2),
+           15 => w_floor(3),
+           others => '0'
+       );
 
 	-- leave unused switches UNCONNECTED. Ignore any warnings this causes.
 	

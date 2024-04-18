@@ -17,7 +17,7 @@
 --|					This provides more flexibility than simpler designs that use a bit from a 
 --|					clk bus (they only provide divisors of powers of 2).
 --|  
---| DOCUMENTATION : Collaberated with my partner C3C Ethan Chapman
+--| DOCUMENTATION : Collaberated with my lab partner C3C Chapman
 --|
 --+----------------------------------------------------------------------------
 --|
@@ -50,48 +50,27 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use ieee.numeric_std.all;
 
-entity clock_divider is
-	generic ( constant k_DIV : natural := 2	); -- How many clk cycles until slow clock toggles
-											   -- Effectively, you divide the clk double this 
-											   -- number (e.g., k_DIV := 2 --> clock divider of 4)
-	port ( 	i_clk    : in std_logic;
-			i_reset  : in std_logic;		   -- asynchronous
-			o_clk    : out std_logic		   -- divided (slow) clock
+entity numberGizmo is
+	port ( 
+	   i_floor : in std_logic_vector (3 downto 0);
+	   o_tens  : out std_logic_vector (3 downto 0);
+	   o_ones  : out std_logic_vector (3 downto 0)
 	);
-end clock_divider;
+end numberGizmo;
 
-architecture countCompare of clock_divider is
-	signal f_count	:	natural		:= 0;
-	signal f_clk	:	std_logic	:= '0';
+architecture numberGizmo_arch of numberGizmo is
 	
 begin
 	-- CONCURRENT STATEMENTS ----------------------------
-	
-	o_clk <= f_clk;
-	
-	
-	-- PROCESSES ----------------------------------------
-	
-	-- Clock count and divide Process -------------------
-	--   increment and compare f_count to k_DIV
-	--   rollover and toggle f_clk when count reaches k_DIV
-	countClock_proc : process(i_clk, i_reset)
-	begin
-		if i_reset = '1' then
-			f_count <= 0;
-			f_clk	<= '0';
-		else
-			if rising_edge(i_clk) then			
-				if f_count = k_DIV - 1 then
-					f_count <= 0;
-					f_clk <= not f_clk;
-				else
-					f_count <= f_count + 1;
-				end if;
-			end if;
-		end if;
-	end process countClock_proc;
-	-----------------------------------------------------
-	
-end countCompare;
-
+    o_tens <= "0001" when (i_floor > "1001") or (i_floor = "0000") else "0000";
+    o_ones <= 
+        "0110" when (i_floor = "0000") else
+        i_floor when (i_floor = "1010") else
+        "0101" when (i_floor = "1111") else
+        "0100" when (i_floor = "1110") else
+        "0011" when (i_floor = "1101") else
+        "0010" when (i_floor = "1100") else
+        "0001" when (i_floor = "1011") else
+        "0000" when (i_floor = "1010") else
+        "0000";
+end numberGizmo_arch;
